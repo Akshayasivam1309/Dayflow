@@ -1,0 +1,50 @@
+import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
+import Layout from "../components/Layout";
+import StatusBadge from "../components/StatusBadge";
+import { api } from "../api/client";
+
+export default function AdminEmployees() {
+  const [employees, setEmployees] = useState([]);
+  const [search, setSearch] = useState("");
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    api.listEmployees().then((d) => setEmployees(d.employees)).catch((e) => setError(e.message));
+  }, []);
+
+  const filtered = employees.filter((e) =>
+    (e.full_name + e.email + e.employee_id).toLowerCase().includes(search.toLowerCase())
+  );
+
+  return (
+    <Layout title="Employees" subtitle="All registered accounts across the organization.">
+      {error && <div className="form-error">{error}</div>}
+
+      <div className="field" style={{ maxWidth: 320, marginBottom: 18 }}>
+        <input placeholder="Search by name, email, or ID…" value={search} onChange={(e) => setSearch(e.target.value)} />
+      </div>
+
+      <div className="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Name</th><th>Employee ID</th><th>Email</th><th>Role</th><th>Verified</th><th></th></tr>
+          </thead>
+          <tbody>
+            {filtered.length === 0 && <tr className="empty-row"><td colSpan={6}>No employees found.</td></tr>}
+            {filtered.map((e) => (
+              <tr key={e.id}>
+                <td>{e.full_name}</td>
+                <td>{e.employee_id}</td>
+                <td>{e.email}</td>
+                <td><StatusBadge status={e.role.toLowerCase()} /></td>
+                <td>{e.is_email_verified ? "Yes" : "No"}</td>
+                <td><Link className="btn btn-secondary btn-sm" to={`/admin/employees/${e.id}`}>View</Link></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </Layout>
+  );
+}

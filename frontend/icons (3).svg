@@ -1,0 +1,44 @@
+import { useEffect, useState } from "react";
+import Layout from "../components/Layout";
+import { api } from "../api/client";
+
+function money(n) {
+  return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(n || 0);
+}
+
+export default function Payroll() {
+  const [payroll, setPayroll] = useState(null);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    api.getMyPayroll().then((d) => setPayroll(d.payroll)).catch((e) => setError(e.message));
+  }, []);
+
+  if (error) return <Layout title="Payroll"><div className="form-error">{error}</div></Layout>;
+  if (!payroll) return <div className="loading-screen">Loading payroll…</div>;
+
+  return (
+    <Layout title="My Payroll" subtitle="Read-only view of your current salary structure.">
+      <div className="stat-grid">
+        <div className="stat-card"><div className="label">Net monthly</div><div className="value accent">{money(payroll.net_monthly)}</div></div>
+        <div className="stat-card"><div className="label">Annual CTC</div><div className="value">{money(payroll.ctc_annual)}</div></div>
+      </div>
+
+      <div className="section">
+        <div className="section-head"><h2>Salary breakdown</h2></div>
+        <div className="table-wrap">
+          <table>
+            <thead><tr><th>Component</th><th>Amount</th></tr></thead>
+            <tbody>
+              <tr><td>Basic</td><td>{money(payroll.basic)}</td></tr>
+              <tr><td>HRA</td><td>{money(payroll.hra)}</td></tr>
+              <tr><td>Allowances</td><td>{money(payroll.allowances)}</td></tr>
+              <tr><td>Deductions</td><td>−{money(payroll.deductions)}</td></tr>
+              <tr style={{ fontWeight: 700 }}><td>Net monthly</td><td>{money(payroll.net_monthly)}</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </Layout>
+  );
+}
