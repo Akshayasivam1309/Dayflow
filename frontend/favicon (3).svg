@@ -1,0 +1,222 @@
+import { useEffect, useState } from "react";
+import Layout from "../components/Layout";
+import StatusBadge from "../components/StatusBadge";
+import { useAuth } from "../context/AuthContext";
+import { api } from "../api/client";
+
+function EmployeeDashboardView() {
+  const { user } = useAuth();
+  const [data, setData] = useState(null);
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const load = async () => {
+    try {
+      const d = await api.getEmployeeDashboard();
+      setData(d);
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const handleCheckIn = async () => {
+    setBusy(true);
+    setError("");
+    try {
+      await api.checkIn();
+      await load();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleCheckOut = async () => {
+    setBusy(true);
+    setError("");
+    try {
+      await api.checkOut();
+      await load();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (!data) return <div className="loading-screen">Loading dashboard…</div>;
+
+  const att = data.today_attendance;
+  const canCheckIn = !att || !att.check_in;
+  const canCheckOut = att && att.check_in && !att.check_out;
+
+  return (
+    <Layout title={`Welcome, ${user.full_name.split(" ")[0]}`} subtitle="Here's how your day looks.">
+      {error && <div className="form-error">{error}</div>}
+
+      <div className="timeclock">
+        <div>
+          <div className="time">
+            {att?.check_in ? new Date(att.check_in).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "Not checked in"}
+          </div>
+          <div className="desc">
+            {att?.check_out
+              ? `Checked out at ${new Date(att.check_out).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
+              : att?.check_in
+              ? "You're checked in for today"
+              : "Start your day when you're ready"}
+          </div>
+        </div>
+        {canCheckIn && (
+          <button className="btn btn-primary" onClick={handleCheckIn} disabled={busy}>Check in</button>
+        )}
+        {canCheckOut && (
+          <button className="btn btn-secondary" onClick={handleCheckOut} disabled={busy}>Check out</button>
+        )}
+      </div>
+
+      <div className="stat-grid">
+        <div className="stat-card">
+          <div className="label">Pending leave requests</div>
+          <div className="value accent">{data.pending_leaves}</div>
+        </div>
+        <div className="stat-card">
+          <div className="label">Approved leaves</div>
+          <div className="value">{data.approved_leaves}</div>
+        </div>
+        <div className="stat-card">
+          <div className="label">Days present this month</div>
+          <div className="value">
+            {data.month_attendance_summary.find((s) => s.status === "PRESENT")?.c || 0}
+          </div>
+        </div>
+      </div>
+
+      <div className="section">
+        <div className="section-head"><h2>Recent leave requests</h2></div>
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Type</th><th>Dates</th><th>Status</th><th>Remarks</th></tr>
+            </thead>
+            <tbody>
+              {data.recent_leaves.length === 0 && (
+                <tr className="empty-row"><td colSpan={4}>No leave requests yet.</td></tr>
+              )}
+              {data.recent_leaves.map((l) => (
+                <tr key={l.id}>
+                  <td>{l.leave_type}</td>
+                  <td>{l.start_date} → {l.end_date}</td>
+                  <td><StatusBadge status={l.status} /></td>
+                  <td>{l.remarks || "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div className="section">
+        <div className="section-head"><h2>Notifications</h2></div>
+        <div className="card">
+          {data.notifications.length === 0 && <p style={{ color: "var(--df-text-muted)", fontSize: 13.5 }}>No notifications yet.</p>}
+          {data.notifications.map((n) => (
+            <div key={n.id} style={{ padding: "10px 0", borderBottom: "1px solid var(--df-border)", fontSize: 13.5 }}>
+              {n.message}
+              <div style={{ fontSize: 11.5, color: "var(--df-text-faint)", marginTop: 2 }}>{n.created_at}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </Layout>
+  );
+}
+
+function AdminDashboardView() {
+  const [data, setData] = useState(null);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    api.getAdminDashboard().then(setData).catch((e) => setError(e.message));
+  }, []);
+
+  if (!data) return <div className="loading-screen">Loading dashboard…</div>;
+
+  return (
+    <Layout title="HR Overview" subtitle="Team attendance and pending approvals at a glance.">
+      {error && <div className="form-error">{error}</div>}
+
+      <div className="stat-grid">
+        <div className="stat-card">
+          <div className="label">Total employees</div>
+          <div className="value">{data.total_employees}</div>
+        </div>
+        <div className="stat-card">
+          <div className="label">Present today</div>
+          <div className="value accent">{data.present_today}</div>
+        </div>
+        <div className="stat-card">
+          <div className="label">Pending leave requests</div>
+          <div className="value">{data.pending_leave_requests}</div>
+        </div>
+      </div>
+
+      <div className="section">
+        <div className="section-head"><h2>Recent leave requests</h2></div>
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Employee</th><th>Type</th><th>Dates</th><th>Status</th></tr>
+            </thead>
+            <tbody>
+              {data.recent_leave_requests.length === 0 && (
+                <tr className="empty-row"><td colSpan={4}>No leave requests yet.</td></tr>
+              )}
+              {data.recent_leave_requests.map((l) => (
+                <tr key={l.id}>
+                  <td>{l.full_name} <span style={{ color: "var(--df-text-faint)" }}>({l.employee_id})</span></td>
+                  <td>{l.leave_type}</td>
+                  <td>{l.start_date} → {l.end_date}</td>
+                  <td><StatusBadge status={l.status} /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div className="section">
+        <div className="section-head"><h2>Attendance today</h2></div>
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Employee</th><th>Check-in</th><th>Check-out</th><th>Status</th></tr>
+            </thead>
+            <tbody>
+              {data.attendance_today.length === 0 && (
+                <tr className="empty-row"><td colSpan={4}>No attendance recorded yet today.</td></tr>
+              )}
+              {data.attendance_today.map((a) => (
+                <tr key={a.id}>
+                  <td>{a.full_name} <span style={{ color: "var(--df-text-faint)" }}>({a.employee_id})</span></td>
+                  <td>{a.check_in ? new Date(a.check_in).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—"}</td>
+                  <td>{a.check_out ? new Date(a.check_out).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—"}</td>
+                  <td><StatusBadge status={a.status} /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </Layout>
+  );
+}
+
+export default function Dashboard() {
+  const { user } = useAuth();
+  if (!user) return null;
+  return user.role === "ADMIN" ? <AdminDashboardView /> : <EmployeeDashboardView />;
+}
